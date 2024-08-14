@@ -26,7 +26,30 @@
 //+------------------------------------------------------------------+
 //| Input & Global Variables | Biến đầu vào và biến toàn cục         |
 //+------------------------------------------------------------------+
+sinput group                            "EA GENERAL SETTINGS" //   Biến đầu vào giới hạn
+input ulong                            MagicNumber           = 101;
 
+sinput group                             "MOVING AVERAGE SETTINGS"
+input int                               MAPeriod              = 30;
+input ENUM_MA_METHOD                    MAMethod              = MODE_SMA;
+input int                               MAShift               = 0;
+input ENUM_APPLIED_PRICE                MAPrice               = PRICE_CLOSE;
+
+sinput group                              "MONEY MANAGEMENT"
+input double                            FixedVolume           = 0.01;
+
+sinput group                              "POSITION MANAGEMENT"
+input ushort                            SLFixedPoints         = 0;
+input ushort                            SLFixedPointsMA       = 0;
+input ushort                            TPFixedPoints         = 0;
+input ushort                            TSLFixedPoins         = 0;
+input ushort                            BEFixedPoints         = 0;
+
+datetime glTimeBarOpen;
+
+//+------------------------------------------------------------------+
+//| Event Handlers                                                   |
+//+------------------------------------------------------------------+
 int OnInit()
   {
    return(INIT_SUCCEEDED);
@@ -34,28 +57,28 @@ int OnInit()
 
 void OnDeinit(const int reason)
   {
-
+    Print("Expert removed");
   }
 
 void OnTick()
   {
-   //--------------------//
-   //  NEW BAR CONTROL   //
-   //--------------------//
+    //-----------------------------------------//
+    // NEW BAR CONTROL | ĐIỀU KHIỂN THANH MỚI  //
+    //-----------------------------------------//
 
-    //--------------------//
-    // PRICE & INDICATORS //
-    //--------------------//
+    //-----------------------------------------//
+    //   PRICE & INDICATORS | GIÁ & CHỈ SỐ     //
+    //-----------------------------------------//
     
-    //--------------------//
-    //     TRADE EXIT     //
-    //--------------------//
+    //-----------------------------------------//
+    //      TRADE EXIT | THOÁT GIAO DỊCH       //
+    //-----------------------------------------//
         
-    //--------------------//
-    //   TRADE PLACEMENT  //
-    //--------------------//
+    //-----------------------------------------//
+    //   TRADE PLACEMENT | ĐẶT HÀNG GIAO DỊCH  //
+    //-----------------------------------------//
   }
 
 //+------------------------------------------------------------------+
-//| EA FUNCTIONS                                                     |
+//| EA FUNCTIONS | CHỨC NĂNG EA                                      |
 //+------------------------------------------------------------------+
