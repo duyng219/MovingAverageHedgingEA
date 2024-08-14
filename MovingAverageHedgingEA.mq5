@@ -4,6 +4,7 @@
 //|                                              github.com/duyng219 |
 //+------------------------------------------------------------------+
 #property copyright "duyng"
+#property description "Moving Average Expert Advisor (Hedging)"
 #property link      "github.com/duyng219"
 #property version   "1.00"
 
