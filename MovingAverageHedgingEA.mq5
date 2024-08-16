@@ -26,7 +26,7 @@
 //+------------------------------------------------------------------+
 //| Input & Global Variables | Biến đầu vào và biến toàn cục         |
 //+------------------------------------------------------------------+
-sinput group                            "EA GENERAL SETTINGS" //   Biến đầu vào giới hạn
+sinput group                            "EA GENERAL SETTINGS"   // Biến đầu vào giới hạn
 input ulong                            MagicNumber           = 101;
 
 sinput group                             "MOVING AVERAGE SETTINGS"
@@ -51,21 +51,39 @@ datetime glTimeBarOpen;
 //| Event Handlers                                                   |
 //+------------------------------------------------------------------+
 int OnInit()
-  {
-   return(INIT_SUCCEEDED);
-  }
+{
+  glTimeBarOpen = D'1971.01.01 00:00';
+
+  return(INIT_SUCCEEDED);
+}
 
 void OnDeinit(const int reason)
-  {
-    Print("Expert removed");
-  }
+{
+  Print("Expert removed");
+}
 
 void OnTick()
-  {
-    //-----------------------------------------//
-    // NEW BAR CONTROL | ĐIỀU KHIỂN THANH MỚI  //
-    //-----------------------------------------//
+{
+  //-----------------------------------------//
+  // NEW BAR CONTROL | ĐIỀU KHIỂN THANH MỚI  //
+  //-----------------------------------------//
 
+  bool newBar = false;
+  
+  //Check for New Bar
+  if(glTimeBarOpen != iTime(_Symbol,PERIOD_CURRENT,0))
+  {
+    newBar = true;
+    glTimeBarOpen = iTime(_Symbol,PERIOD_CURRENT,0);
+  }
+
+  if(newBar == true)
+  {
+    double newBarClose1 = Close(1);
+    Print("Nến đóng cửa của thanh thứ 2 từ phải qua trái: ", newBarClose1);
+
+    double newBarClose2 = iClose(_Symbol,PERIOD_CURRENT,1);
+    Print("Nến đóng cửa của thanh thứ 2 từ phải qua trái sử dụng Param Predifine: ", newBarClose2);
     //-----------------------------------------//
     //   PRICE & INDICATORS | GIÁ & CHỈ SỐ     //
     //-----------------------------------------//
@@ -78,7 +96,17 @@ void OnTick()
     //   TRADE PLACEMENT | ĐẶT HÀNG GIAO DỊCH  //
     //-----------------------------------------//
   }
+}
 
 //+------------------------------------------------------------------+
 //| EA FUNCTIONS | CHỨC NĂNG EA                                      |
 //+------------------------------------------------------------------+
+
+double Close(int pShift)
+{
+  MqlRates bar[];                              //it create an object array of MlqRates strucure | tạo một mảng đối tượng của cấu trúc MlqRates
+  ArraySetAsSeries(bar,true);                  //it sets our array as a series array (so current bar is positon 0, previous bar is 1..) | đặt mảng của chúng ta thành một mảng chuỗi (vì vậy thanh hiện tại là positon 0, thanh trước đó là 1..)
+  CopyRates(_Symbol,PERIOD_CURRENT,0,3,bar);   //it copies the bar price information of bars position 0, 1 and 2 to our array "bar" | sao chép thông tin giá thanh của vị trí thanh 0, 1 và 2 vào mảng "bar"
+
+  return bar[pShift].close;
+}
