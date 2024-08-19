@@ -31,9 +31,9 @@ input ulong                               MagicNumber             = 101;
 
 sinput group                              "MOVING AVERAGE SETTINGS"
 input int                                 MAPeriod                = 30;
-input ENUM_MA_METHOD                      MAMethod                = MODE_SMA;
 input int                                 MAShift                 = 0;
-input ENUM_APPLIED_PRICE                  MAPrice                 = PRICE_CLOSE;
+input ENUM_MA_METHOD                      MAMethod                = MODE_SMA; //MODE_EMA,MODE_SMMA,MODE_LWMA
+input ENUM_APPLIED_PRICE                  MAPrice                 = PRICE_CLOSE; //PRICE_OPEN,PRICE_HIGH,PRICE_LOW
 
 sinput group                              "MONEY MANAGEMENT"
 input double                              FixedVolume             = 0.01;
@@ -84,19 +84,22 @@ void OnTick()
 
   if (newBar == true)
   {
-    double newBarClose1 = Close(1);
-    Print("Nến đóng cửa của thanh thứ 2 từ phải qua trái: ", newBarClose1);
-
-    double newBarClose2 = iClose(_Symbol, PERIOD_CURRENT, 1);
-    Print("Nến đóng cửa của thanh thứ 2 từ phải qua trái sử dụng Param Predifine: ", newBarClose2);
-
-    double open = Open(2);
-    Print("Giá mở cửa của nến  từ phải qua trái: ", open);
-
-    Print("Đường trung bình động của SMA30 là: ", MAHandle);
     //-----------------------------------------//
     //   PRICE & INDICATORS | GIÁ & CHỈ SỐ     //
     //-----------------------------------------//
+
+    double close =Close(1);
+    // Print(close);
+
+    // Normalization of close price to digits | Bình thường hóa giá đóng thành chữ số
+    close = NormalizeDouble(close,_Digits);
+    // Print("Digits: ",close);
+
+    // Normalization of close price to tick size | Bình thường hóa giá đóng theo kích thước đánh dấu
+    double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE); //USDJPY 100.185 -- > 0.001 TSL 85.54 --> 0.01
+    double closeTickSize = round(close/tickSize) * tickSize; // round(85.52100000001/0.001) * 0.001
+    Print(closeTickSize);
+
 
     //-----------------------------------------//
     //      TRADE EXIT | THOÁT GIAO DỊCH       //
