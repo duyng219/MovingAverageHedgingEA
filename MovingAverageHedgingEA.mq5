@@ -8,12 +8,6 @@
 #property link "github.com/duyng219"
 #property version "1.00"
 
-// Expert Notes
-// Expert Advisor that codes a Moving Average strategy
-// It is designed to trade in direction of the trend, placing buy positions when last bar closes above the moving average and short sell positions when last bar closes below the moving average
-// It incorporates two different alternative stop-loss that consists of fixed points below the open price or moving average, for long trades, or above the open price or moving average, for short trades
-// It incorporates settings for placing profit taking, as well as break-even and trailing stop loss
-
 // EA mã hóa chiến lược Trung bình động
 // Nó được thiết kế để giao dịch theo hướng của xu hướng, đặt các vị thế mua khi thanh cuối cùng đóng trên đường trung bình động và các vị thế bán khống khi thanh cuối cùng đóng dưới đường trung bình động
 // Nó kết hợp hai mức dừng lỗ thay thế khác nhau bao gồm các điểm cố định bên dưới giá mở cửa hoặc đường trung bình động đối với các giao dịch dài hạn hoặc trên giá mở cửa hoặc đường trung bình động đối với các giao dịch ngắn hạn.
@@ -22,7 +16,8 @@
 //+------------------------------------------------------------------+
 //| EA Enumerations / Bảng liệt kê EA                                |
 //+------------------------------------------------------------------+
-
+input bool UseFillingPolicy = false;
+input ENUM_ORDER_TYPE_FILLING FillingPolicy = ORDER_FILLING_FOK;
 //+------------------------------------------------------------------+
 //| Input & Global Variables | Biến đầu vào và biến toàn cục         |
 //+------------------------------------------------------------------+
@@ -36,7 +31,7 @@ input ENUM_MA_METHOD                      MAMethod                = MODE_SMA; //
 input ENUM_APPLIED_PRICE                  MAPrice                 = PRICE_CLOSE; //PRICE_OPEN,PRICE_HIGH,PRICE_LOW
 
 sinput group                              "MONEY MANAGEMENT"
-input double                              FixedVolume             = 0.01;
+input double                              FixedVolume             = 0.1;
 
 sinput group                              "POSITION MANAGEMENT"
 input int                                 SLFixedPoints           = 0;
@@ -119,14 +114,10 @@ void OnTick()
     //--------------------//
 
     string entrySignal = MA_EntrySignal(close1,close2,ma1,ma2);
-    if(entrySignal == "LONG")
+    if(entrySignal == "LONG" || entrySignal == "SHORT")
     {
-      Print("Long Trade Placed");
+      ulong ticket = OpenTrades(entrySignal,MagicNumber,FixedVolume);
     } 
-    else if(entrySignal == "SHORT")
-    {
-      Print("Short Trade Placed");
-    }
   }
 }
 
@@ -252,7 +243,6 @@ string MA_ExitSignal(double pPrice1, double pPrice2, double pMA1, double pMA2)
 }
 
 //+--------+// Bollinger Bands Functions //+--------+//
-
 int BB_Init(int pBBPeriod, int pBBShift, double pBBDeviation, ENUM_APPLIED_PRICE pBBPrice)
 {
   //In case of error when initializing the BB, GetLastError() will get the error code and store it in _lastError
@@ -277,7 +267,6 @@ int BB_Init(int pBBPeriod, int pBBShift, double pBBDeviation, ENUM_APPLIED_PRICE
 
   return Hanlde;
 }
-
 double BB(int pBBHandle, int pBBLineBuffer, int pShift)
 {
   ResetLastError();
@@ -298,4 +287,71 @@ double BB(int pBBHandle, int pBBLineBuffer, int pShift)
   BBValue = NormalizeDouble(BBValue,_Digits);
   
   return BBValue;
+}
+
+
+//+--------+// Orders Placement Functions //+--------+//
+
+ulong OpenTrades(string pEntrySignal, ulong pMagicNumber, double pFixedVol)
+{
+  //Buy position open trades at Ask but close them at Bid
+  //Sell position open trades at Bid but close them at Ask
+  double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
+  double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);
+  double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE);
+
+  //Price must be normalized either to digits or ticksize | Normalized gias bangw ditgis or ticksize
+  askPrice = round(askPrice/tickSize) * tickSize;
+  bidPrice = round(bidPrice/tickSize) * tickSize;
+
+  string comment = pEntrySignal + " | " + _Symbol + " | " + string(pMagicNumber);
+
+  //Request and Result Declaration and Initializtion
+  MqlTradeRequest request = {};
+  MqlTradeResult result = {};
+
+  if(pEntrySignal == "LONG")
+  {
+    //Request Parameters
+    request.action    = TRADE_ACTION_DEAL;
+    request.symbol    = _Symbol;
+    request.volume    = pFixedVol;
+    request.type      = ORDER_TYPE_BUY;
+    request.price     = askPrice;
+    request.deviation = 10;
+    request.magic     = pMagicNumber;
+    request.comment   = comment;
+
+    //Request Send
+    if(!OrderSend(request,result))
+      Print("OrderSend trade placement error: ", GetLastError()); //if request was not send, print error code
+
+    //Trade Information 
+    Print("Open ",request.symbol," LONG"," order #",result.order,": ",result.retcode,", Volume: ",result.volume,", Price: ",DoubleToString(askPrice, _Digits));
+  }
+  else if(pEntrySignal == "SHORT")
+  {
+    //Request Parameters
+    request.action    = TRADE_ACTION_DEAL;
+    request.symbol    = _Symbol;
+    request.volume    = pFixedVol;
+    request.type      = ORDER_TYPE_SELL;
+    request.price     = bidPrice;
+    request.deviation = 10;
+    request.magic     = pMagicNumber;
+    request.comment   = comment;
+
+    //Request Send
+    if(!OrderSend(request,result))
+      Print("OrderSend trade placement error: ", GetLastError()); //if request was not send, print error code
+
+    //Trade Information 
+    Print("Open ",request.symbol," SHORT"," order #",result.order,": ",result.retcode,", Volume: ",result.volume,", Price: ",DoubleToString(bidPrice, _Digits));
+  }
+
+  if(result.retcode == TRADE_RETCODE_DONE || result.retcode == TRADE_RETCODE_DONE_PARTIAL || result.retcode == TRADE_RETCODE_PLACED || result.retcode == TRADE_RETCODE_NO_CHANGES)
+    {
+      return result.order;
+    }
+    else return 0;
 }
