@@ -16,13 +16,14 @@
 //+------------------------------------------------------------------+
 //| EA Enumerations / Bảng liệt kê EA                                |
 //+------------------------------------------------------------------+
-input bool UseFillingPolicy = false;
-input ENUM_ORDER_TYPE_FILLING FillingPolicy = ORDER_FILLING_FOK;
+
 //+------------------------------------------------------------------+
 //| Input & Global Variables | Biến đầu vào và biến toàn cục         |
 //+------------------------------------------------------------------+
 sinput group                              "EA GENERAL SETTINGS" // Biến đầu vào giới hạn (Title)
 input ulong                               MagicNumber             = 101;
+input bool                                UseFillingPolicy        = false;
+input ENUM_ORDER_TYPE_FILLING             FillingPolicy           = ORDER_FILLING_FOK;
 
 sinput group                              "MOVING AVERAGE SETTINGS"
 input int                                 MAPeriod                = 30;
@@ -102,10 +103,8 @@ void OnTick()
     //Exit Signals & Close Trades Execution
     string exitSignal = MA_ExitSignal(close1,close2,ma1,ma2);
 
-    if(exitSignal == "EXIT_LONG" || exitSignal == "EXIT_SHORT")
-    {
-
-    }
+    if(exitSignal == "EXIT_LONG" || exitSignal == "EXIT_SHORT"){
+      CloseTrades(MagicNumber,exitSignal);}
 
     Sleep(1000);
 
@@ -113,8 +112,11 @@ void OnTick()
     //   TRADE PLACEMENT  //
     //--------------------//
 
+    //Entry Signals & Order Placement Execution
     string entrySignal = MA_EntrySignal(close1,close2,ma1,ma2);
-    if(entrySignal == "LONG" || entrySignal == "SHORT")
+    Comment("EA #", MagicNumber, " | ", exitSignal, " | ", entrySignal, " SIGNALS DETECTED");
+
+    if((entrySignal == "LONG" || entrySignal == "SHORT") && CheckPlacedPositions(MagicNumber) == false)
     {
       ulong ticket = OpenTrades(entrySignal,MagicNumber,FixedVolume);
     } 
@@ -354,4 +356,71 @@ ulong OpenTrades(string pEntrySignal, ulong pMagicNumber, double pFixedVol)
       return result.order;
     }
     else return 0;
+}
+
+bool CheckPlacedPositions(ulong pMagic)
+{
+  bool placedPosition = false;
+
+  for(int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    ulong positionTicket = PositionGetTicket(i);
+    PositionSelectByTicket(positionTicket);
+
+    ulong posMagic = PositionGetInteger(POSITION_MAGIC);
+
+    if(posMagic == pMagic)
+    {
+      placedPosition = true;
+      break;
+    }
+  }
+  return placedPosition;
+}
+
+void CloseTrades(ulong pMagic, string pExitSignal)
+{
+  //Request and Result Declaration and Initialization
+  MqlTradeRequest request = {};
+  MqlTradeResult result   = {};
+
+  for(int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    //Reset of request and result values
+    ZeroMemory(request);
+    ZeroMemory(result);
+
+    ulong positionTicket = PositionGetTicket(i);
+    PositionSelectByTicket(positionTicket);
+
+    ulong posMagic = PositionGetInteger(POSITION_MAGIC);
+    ulong posType = PositionGetInteger(POSITION_TYPE);
+
+    if(posMagic == pMagic && pExitSignal == "EXIT_LONG" && posType == ORDER_TYPE_BUY)
+    {
+      request.action = TRADE_ACTION_DEAL;
+      request.type = ORDER_TYPE_SELL;
+      request.symbol = _Symbol;
+      request.position = positionTicket;
+      request.volume = PositionGetDouble(POSITION_VOLUME);
+      request.price = SymbolInfoDouble(_Symbol,SYMBOL_BID);
+      request.deviation = 10;
+
+      bool sent = OrderSend(request,result);
+      if(sent == true) {Print("Position #",positionTicket, " closed");}
+    }
+    else if(posMagic == pMagic && pExitSignal == "EXIT_SHORT" && posType == ORDER_TYPE_SELL)
+    {
+      request.action = TRADE_ACTION_DEAL;
+      request.type = ORDER_TYPE_BUY;
+      request.symbol = _Symbol;
+      request.position = positionTicket;
+      request.volume = PositionGetDouble(POSITION_VOLUME);
+      request.price = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
+      request.deviation = 10;
+
+      bool sent = OrderSend(request,result);
+      if(sent == true) {Print("Position #",positionTicket, " closed");}
+    }
+  }
 }
