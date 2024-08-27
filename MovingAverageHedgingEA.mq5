@@ -119,7 +119,18 @@ void OnTick()
     if((entrySignal == "LONG" || entrySignal == "SHORT") && CheckPlacedPositions(MagicNumber) == false)
     {
       ulong ticket = OpenTrades(entrySignal,MagicNumber,FixedVolume);
+
+      //SL & TP Trade Modification
+      if(ticket > 0)
+      {
+        double stoploss = CalculateStopLoss(entrySignal,SLFixedPoints,SLFixedPointsMA,ma1);
+        double takeprofit = CalculateTakeProfit(entrySignal,TPFixedPoints);
+      }
     } 
+
+    //--------------------//
+    //POSITION MANAGEMENT //
+    //--------------------//
   }
 }
 
@@ -423,4 +434,54 @@ void CloseTrades(ulong pMagic, string pExitSignal)
       if(sent == true) {Print("Position #",positionTicket, " closed");}
     }
   }
+}
+
+//+--------+// Position Management Functions //+--------+//
+
+double CalculateStopLoss(string pEntrySignal, int pSLFixedPoints, int pSLFixedPointsMA, double pMA)
+{
+  double stoploss = 0.0;
+  double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
+  double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);
+  double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE);
+
+  if(pEntrySignal == "LONG")
+  {
+    if(pSLFixedPoints > 0){
+      stoploss = bidPrice - (pSLFixedPoints * _Point);} //1.11125 - (100 * 0.00001)
+    else if(pSLFixedPointsMA > 0){
+      stoploss = pMA - (pSLFixedPointsMA * _Point);}
+  }
+  else if(pEntrySignal == "SHORT")
+  {
+    if(pSLFixedPoints > 0){
+      stoploss = askPrice + (pSLFixedPoints * _Point);} //1.11125 + (100 * 0.00001)
+    else if(pSLFixedPointsMA > 0){
+      stoploss = pMA + (pSLFixedPointsMA * _Point);}
+  }
+
+  stoploss = round(stoploss/tickSize) * tickSize;
+  return stoploss;
+}
+
+double CalculateTakeProfit(string pEntrySignal, int pTPFixedPoints)
+{
+  double takeprofit = 0.0;
+  double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
+  double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);
+  double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE);
+
+  if(pEntrySignal == "LONG")
+  {
+    if(pTPFixedPoints > 0){
+      takeprofit = bidPrice + (pTPFixedPoints * _Point);} //1.11125 + (100 * 0.00001)
+  }
+  else if(pEntrySignal == "SHORT")
+  {
+    if(pTPFixedPoints > 0){
+      takeprofit = askPrice - (pTPFixedPoints * _Point);} //1.11125 - (100 * 0.00001)
+  }
+
+  takeprofit = round(takeprofit/tickSize) * tickSize;
+  return takeprofit;
 }
