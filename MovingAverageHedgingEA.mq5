@@ -28,8 +28,8 @@ input ENUM_ORDER_TYPE_FILLING             FillingPolicy           = ORDER_FILLIN
 sinput group                              "MOVING AVERAGE SETTINGS"
 input int                                 MAPeriod                = 30;
 input int                                 MAShift                 = 0;
-input ENUM_MA_METHOD                      MAMethod                = MODE_SMA; //MODE_EMA,MODE_SMMA,MODE_LWMA
-input ENUM_APPLIED_PRICE                  MAPrice                 = PRICE_CLOSE; //PRICE_OPEN,PRICE_HIGH,PRICE_LOW
+input ENUM_MA_METHOD                      MAMethod                = MODE_SMA; 
+input ENUM_APPLIED_PRICE                  MAPrice                 = PRICE_CLOSE;
 
 sinput group                              "MONEY MANAGEMENT"
 input double                              FixedVolume             = 0.1;
@@ -123,14 +123,17 @@ void OnTick()
       //SL & TP Trade Modification
       if(ticket > 0)
       {
-        double stoploss = CalculateStopLoss(entrySignal,SLFixedPoints,SLFixedPointsMA,ma1);
-        double takeprofit = CalculateTakeProfit(entrySignal,TPFixedPoints);
+        double stopLoss = CalculateStopLoss(entrySignal,SLFixedPoints,SLFixedPointsMA,ma1);
+        double takeProfit = CalculateTakeProfit(entrySignal,TPFixedPoints);
+        TradeModification(ticket,MagicNumber,stopLoss,takeProfit);
       }
     } 
 
     //--------------------//
     //POSITION MANAGEMENT //
     //--------------------//
+
+    if(TSLFixedPoints > 0) TrailingStopLoss(MagicNumber,TSLFixedPoints);
   }
 }
 
@@ -369,6 +372,38 @@ ulong OpenTrades(string pEntrySignal, ulong pMagicNumber, double pFixedVol)
     else return 0;
 }
 
+void TradeModification(ulong ticket, ulong pMagic, double pSLPrice, double pTPPrice)
+{
+  double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE);
+
+  MqlTradeRequest request = {};
+  MqlTradeResult result = {};
+
+  request.action = TRADE_ACTION_SLTP;
+  request.position = ticket;
+  request.symbol = _Symbol;
+  request.sl = round(pSLPrice/tickSize) * tickSize;
+  request.tp = round(pTPPrice/tickSize) * tickSize;
+  request.comment = "MOD. " + " | " + _Symbol + " | " + string(pMagic) 
+                            + ", SL: " + DoubleToString(request.sl,_Digits) + ", TP: " + DoubleToString(request.tp,_Digits);
+
+  if(request.sl > 0 || request.tp > 0)
+  {
+    Sleep(1000);
+    bool send = OrderSend(request,result);
+    Print(result.comment);
+
+    if(!send){
+      Print("OrderSend Modification error: ", GetLastError());
+      Sleep(3000);
+
+      send = OrderSend(request,result);
+      Print(result.comment);
+      if(!send) Print("OrderSend Modification error: ", GetLastError());
+    }
+  }
+}
+
 bool CheckPlacedPositions(ulong pMagic)
 {
   bool placedPosition = false;
@@ -484,4 +519,63 @@ double CalculateTakeProfit(string pEntrySignal, int pTPFixedPoints)
 
   takeprofit = round(takeprofit/tickSize) * tickSize;
   return takeprofit;
+}
+
+void TrailingStopLoss(ulong pMagic, int pTSLFixedPoints)
+{
+  //Request and Result Declaration and Initialization
+  MqlTradeRequest request = {};
+  MqlTradeResult result = {};
+
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    //Reset of request and result values
+    ZeroMemory(request);
+    ZeroMemory(result);
+
+    ulong positionTicket = PositionGetTicket(i);
+    PositionSelectByTicket(positionTicket);
+
+    ulong posMagic = PositionGetInteger(POSITION_MAGIC);
+    ulong posType = PositionGetInteger(POSITION_TYPE);
+    double currentStopLoss = PositionGetDouble(POSITION_SL);
+    double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE);
+    double newStopLoss;
+
+    if(posMagic == pMagic && posType == ORDER_TYPE_BUY)
+    {
+      double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);
+      newStopLoss = bidPrice - (pTSLFixedPoints * _Point);
+      newStopLoss = round(newStopLoss/tickSize) * tickSize;
+
+      if(newStopLoss > currentStopLoss)
+      {
+        request.action = TRADE_ACTION_SLTP;
+        request.position = positionTicket;
+        request.comment = "TSL. " + " | " + _Symbol + " | " + string(pMagic);
+        request.sl = newStopLoss;
+
+        bool sent = OrderSend(request,result);
+        if(!sent) Print("OrderSend TSL error: ", GetLastError());
+      }
+    }
+    else if(posMagic == pMagic && posType == ORDER_TYPE_SELL)
+    {
+      double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
+      newStopLoss = askPrice + (pTSLFixedPoints * _Point);
+      newStopLoss = round(newStopLoss/tickSize) * tickSize;
+
+      if(newStopLoss < currentStopLoss)
+      {
+        request.action = TRADE_ACTION_SLTP;
+        request.position = positionTicket;
+        request.comment = "TSL. " + " | " + _Symbol + " | " + string(pMagic);
+        request.sl = newStopLoss;
+
+        bool sent = OrderSend(request,result);
+        if(!sent) Print("OrderSend TSL error: ", GetLastError());
+      }
+    }
+  }
+  
 }
