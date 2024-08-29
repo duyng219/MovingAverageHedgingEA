@@ -134,6 +134,7 @@ void OnTick()
     //--------------------//
 
     if(TSLFixedPoints > 0) TrailingStopLoss(MagicNumber,TSLFixedPoints);
+    if(BEFixedPoints > 0) BreakEven(MagicNumber,BEFixedPoints);
   }
 }
 
@@ -577,5 +578,61 @@ void TrailingStopLoss(ulong pMagic, int pTSLFixedPoints)
       }
     }
   }
-  
+}
+
+void BreakEven(ulong pMagic, int pBEFixedPoints)
+{
+  //Request and Result Declaration and Initialization
+  MqlTradeRequest request = {};
+  MqlTradeResult result = {};
+
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    //Reset of request and result values
+    ZeroMemory(request);
+    ZeroMemory(result);
+
+    ulong positionTicket = PositionGetTicket(i);
+    PositionSelectByTicket(positionTicket);
+
+    ulong posMagic = PositionGetInteger(POSITION_MAGIC);
+    ulong posType = PositionGetInteger(POSITION_TYPE);
+    double currentStopLoss = PositionGetDouble(POSITION_SL);
+    double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE);
+    double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+    double newStopLoss = round(openPrice/tickSize) * tickSize;
+
+    if(posMagic == pMagic && posType == ORDER_TYPE_BUY)
+    {
+      double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);
+      double BEThreshould = openPrice + (pBEFixedPoints*_Point);
+
+      if(newStopLoss > currentStopLoss && bidPrice > BEThreshould)
+      {
+        request.action = TRADE_ACTION_SLTP;
+        request.position = positionTicket;
+        request.comment = "BE. " + " | " + _Symbol + " | " + string(pMagic);
+        request.sl = newStopLoss;
+
+        bool sent = OrderSend(request,result);
+        if(!sent) Print("OrderSend BE error: ", GetLastError());
+      }
+    }
+    else if(posMagic == pMagic && posType == ORDER_TYPE_SELL)
+    {
+      double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
+      double BEThreshould = openPrice - (pBEFixedPoints*_Point);
+
+      if(newStopLoss < currentStopLoss && askPrice < BEThreshould)
+      {
+        request.action = TRADE_ACTION_SLTP;
+        request.position = positionTicket;
+        request.comment = "BE. " + " | " + _Symbol + " | " + string(pMagic);
+        request.sl = newStopLoss;
+
+        bool sent = OrderSend(request,result);
+        if(!sent) Print("OrderSend BE error: ", GetLastError());
+      }
+    }
+  }
 }
