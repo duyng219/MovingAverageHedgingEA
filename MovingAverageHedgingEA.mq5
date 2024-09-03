@@ -487,6 +487,8 @@ double CalculateStopLoss(string pEntrySignal, int pSLFixedPoints, int pSLFixedPo
       stoploss = bidPrice - (pSLFixedPoints * _Point);} //1.11125 - (100 * 0.00001)
     else if(pSLFixedPointsMA > 0){
       stoploss = pMA - (pSLFixedPointsMA * _Point);}
+
+    if(stoploss > 0) stoploss = AdjustBelowStopLevel(bidPrice,stoploss);
   }
   else if(pEntrySignal == "SHORT")
   {
@@ -494,6 +496,8 @@ double CalculateStopLoss(string pEntrySignal, int pSLFixedPoints, int pSLFixedPo
       stoploss = askPrice + (pSLFixedPoints * _Point);} //1.11125 + (100 * 0.00001)
     else if(pSLFixedPointsMA > 0){
       stoploss = pMA + (pSLFixedPointsMA * _Point);}
+
+    if(stoploss > 0) stoploss = AdjustAboveStopLevel(askPrice,stoploss);
   }
 
   stoploss = round(stoploss/tickSize) * tickSize;
@@ -511,11 +515,15 @@ double CalculateTakeProfit(string pEntrySignal, int pTPFixedPoints)
   {
     if(pTPFixedPoints > 0){
       takeprofit = bidPrice + (pTPFixedPoints * _Point);} //1.11125 + (100 * 0.00001)
+
+    if(takeprofit > 0) takeprofit = AdjustAboveStopLevel(bidPrice,takeprofit);
   }
   else if(pEntrySignal == "SHORT")
   {
     if(pTPFixedPoints > 0){
       takeprofit = askPrice - (pTPFixedPoints * _Point);} //1.11125 - (100 * 0.00001)
+
+    if(takeprofit > 0) takeprofit = AdjustBelowStopLevel(askPrice,takeprofit);
   }
 
   takeprofit = round(takeprofit/tickSize) * tickSize;
@@ -547,6 +555,7 @@ void TrailingStopLoss(ulong pMagic, int pTSLFixedPoints)
     {
       double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);
       newStopLoss = bidPrice - (pTSLFixedPoints * _Point);
+      newStopLoss = AdjustBelowStopLevel(bidPrice,newStopLoss);
       newStopLoss = round(newStopLoss/tickSize) * tickSize;
 
       if(newStopLoss > currentStopLoss)
@@ -564,6 +573,7 @@ void TrailingStopLoss(ulong pMagic, int pTSLFixedPoints)
     {
       double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
       newStopLoss = askPrice + (pTSLFixedPoints * _Point);
+      newStopLoss = AdjustAboveStopLevel(askPrice,newStopLoss);
       newStopLoss = round(newStopLoss/tickSize) * tickSize;
 
       if(newStopLoss < currentStopLoss)
@@ -635,4 +645,50 @@ void BreakEven(ulong pMagic, int pBEFixedPoints)
       }
     }
   }
+}
+
+double AdjustAboveStopLevel(double pCurrentPrice, double pPriceToAdjust, int pPointsToAdd = 10)
+{
+  double adjustedPrice = pPriceToAdjust;
+
+  double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+  long stopsLevel = SymbolInfoInteger(_Symbol,SYMBOL_TRADE_STOPS_LEVEL);
+
+  if(stopsLevel > 0)
+  {
+    double stopsLevelPrice = stopsLevel * point;        //stops level points in price
+    stopsLevelPrice = pCurrentPrice + stopsLevelPrice;  //stops price level - distance from bid/ask
+
+    double addPoints = pPointsToAdd * point;            // Points that will be added/substracted to stops level price to make sure we respect the distance fixed by stops level
+
+    if(adjustedPrice <= stopsLevelPrice + addPoints)
+    {
+      adjustedPrice = stopsLevelPrice + addPoints;
+      Print("Price adjusted above stop level to " + string(adjustedPrice));
+    }
+  }
+  return adjustedPrice;
+}
+
+double AdjustBelowStopLevel(double pCurrentPrice, double pPriceToAdjust, int pPointsToAdd = 10)
+{
+  double adjustedPrice = pPriceToAdjust;
+
+  double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+  long stopsLevel = SymbolInfoInteger(_Symbol,SYMBOL_TRADE_STOPS_LEVEL);
+
+  if(stopsLevel > 0)
+  {
+    double stopsLevelPrice = stopsLevel * point;        //stops level points in price
+    stopsLevelPrice = pCurrentPrice - stopsLevelPrice;  //stops price level - distance from bid/ask
+
+    double addPoints = pPointsToAdd * point;            // Points that will be added/substracted to stops level price to make sure we respect the distance fixed by stops level
+
+    if(adjustedPrice >= stopsLevelPrice - addPoints)
+    {
+      adjustedPrice = stopsLevelPrice - addPoints;
+      Print("Price adjusted below stop level to " + string(adjustedPrice));
+    }
+  }
+  return adjustedPrice;
 }
