@@ -7,6 +7,7 @@
 #property description "Moving Average Expert Advisor (Hedging)"
 #property link "github.com/duyng219"
 #property version "1.00"
+//#include <stdDirectoryFunctions.mqh>
 
 // EA mã hóa chiến lược Trung bình động
 // Nó được thiết kế để giao dịch theo hướng của xu hướng, đặt các vị thế mua khi thanh cuối cùng đóng trên đường trung bình động và các vị thế bán khống khi thanh cuối cùng đóng dưới đường trung bình động
@@ -22,8 +23,6 @@
 //+------------------------------------------------------------------+
 sinput group                              "EA GENERAL SETTINGS" // Biến đầu vào giới hạn (Title)
 input ulong                               MagicNumber             = 101;
-input bool                                UseFillingPolicy        = false;
-input ENUM_ORDER_TYPE_FILLING             FillingPolicy           = ORDER_FILLING_FOK;
 
 sinput group                              "MOVING AVERAGE SETTINGS"
 input int                                 MAPeriod                = 30;
@@ -41,21 +40,28 @@ input int                                 TPFixedPoints           = 0;
 input int                                 TSLFixedPoints          = 0;
 input int                                 BEFixedPoints           = 0;
 
-datetime    glTimeBarOpen;
-int         MAHandle;
+datetime                                  glTimeBarOpen;
+ENUM_ORDER_TYPE_FILLING                   glFillingPolicy;
+int                                       MAHandle;
 
 //+------------------------------------------------------------------+
 //| Event Handlers                                                   |
 //+------------------------------------------------------------------+
 int OnInit()
 {
+  //-- Initialization of variables
   glTimeBarOpen = D'1971.01.01 00:00';
 
+  if(IsFillingTypeAllowed(SYMBOL_FILLING_FOK))        glFillingPolicy = ORDER_FILLING_FOK;
+  else if(IsFillingTypeAllowed(SYMBOL_FILLING_IOC))   glFillingPolicy = ORDER_FILLING_IOC;
+  else                                                glFillingPolicy = ORDER_FILLING_RETURN;
+  
+  //-- Indicator handles
   MAHandle = MA_Init(MAPeriod,MAShift,MAMethod,MAPrice);
-  if(MAHandle == -1){
-    return (INIT_FAILED);}
 
-  return (INIT_SUCCEEDED);
+  if(MAHandle == -1) return(INIT_FAILED);
+
+  return(INIT_SUCCEEDED);
 }
 
 void OnDeinit(const int reason)
@@ -483,21 +489,17 @@ double CalculateStopLoss(string pEntrySignal, int pSLFixedPoints, int pSLFixedPo
 
   if(pEntrySignal == "LONG")
   {
-    if(pSLFixedPoints > 0){
-      stoploss = bidPrice - (pSLFixedPoints * _Point);} //1.11125 - (100 * 0.00001)
-    else if(pSLFixedPointsMA > 0){
-      stoploss = pMA - (pSLFixedPointsMA * _Point);}
+    if(pSLFixedPoints > 0) stoploss = askPrice - (pSLFixedPoints * _Point); //1.11125 - (100 * 0.00001)
+    else if(pSLFixedPointsMA > 0) stoploss = pMA - (pSLFixedPointsMA * _Point);
 
-    if(stoploss > 0) stoploss = AdjustBelowStopLevel(bidPrice,stoploss);
+    if(stoploss > 0) stoploss = AdjustBelowStopLevel(askPrice,stoploss);
   }
   else if(pEntrySignal == "SHORT")
   {
-    if(pSLFixedPoints > 0){
-      stoploss = askPrice + (pSLFixedPoints * _Point);} //1.11125 + (100 * 0.00001)
-    else if(pSLFixedPointsMA > 0){
-      stoploss = pMA + (pSLFixedPointsMA * _Point);}
+    if(pSLFixedPoints > 0) stoploss = bidPrice + (pSLFixedPoints * _Point); //1.11125 + (100 * 0.00001)
+    else if(pSLFixedPointsMA > 0) stoploss = pMA + (pSLFixedPointsMA * _Point);
 
-    if(stoploss > 0) stoploss = AdjustAboveStopLevel(askPrice,stoploss);
+    if(stoploss > 0) stoploss = AdjustAboveStopLevel(bidPrice,stoploss);
   }
 
   stoploss = round(stoploss/tickSize) * tickSize;
@@ -513,17 +515,15 @@ double CalculateTakeProfit(string pEntrySignal, int pTPFixedPoints)
 
   if(pEntrySignal == "LONG")
   {
-    if(pTPFixedPoints > 0){
-      takeprofit = bidPrice + (pTPFixedPoints * _Point);} //1.11125 + (100 * 0.00001)
+    if(pTPFixedPoints > 0) takeprofit = askPrice + (pTPFixedPoints * _Point); //1.11125 + (100 * 0.00001)
 
-    if(takeprofit > 0) takeprofit = AdjustAboveStopLevel(bidPrice,takeprofit);
+    if(takeprofit > 0) takeprofit = AdjustAboveStopLevel(askPrice,takeprofit);
   }
   else if(pEntrySignal == "SHORT")
   {
-    if(pTPFixedPoints > 0){
-      takeprofit = askPrice - (pTPFixedPoints * _Point);} //1.11125 - (100 * 0.00001)
+    if(pTPFixedPoints > 0) takeprofit = bidPrice - (pTPFixedPoints * _Point); //1.11125 - (100 * 0.00001)
 
-    if(takeprofit > 0) takeprofit = AdjustBelowStopLevel(askPrice,takeprofit);
+    if(takeprofit > 0) takeprofit = AdjustBelowStopLevel(bidPrice,takeprofit);
   }
 
   takeprofit = round(takeprofit/tickSize) * tickSize;
@@ -549,21 +549,25 @@ void TrailingStopLoss(ulong pMagic, int pTSLFixedPoints)
     ulong posType = PositionGetInteger(POSITION_TYPE);
     double currentStopLoss = PositionGetDouble(POSITION_SL);
     double tickSize = SymbolInfoDouble(_Symbol,SYMBOL_TRADE_TICK_SIZE);
+
+    double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);  
+    double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);       
     double newStopLoss;
 
     if(posMagic == pMagic && posType == ORDER_TYPE_BUY)
     {
-      double bidPrice = SymbolInfoDouble(_Symbol,SYMBOL_BID);
-      newStopLoss = bidPrice - (pTSLFixedPoints * _Point);
-      newStopLoss = AdjustBelowStopLevel(bidPrice,newStopLoss);
+      newStopLoss = askPrice - (pTSLFixedPoints * _Point);
+      newStopLoss = AdjustBelowStopLevel(askPrice,newStopLoss);
       newStopLoss = round(newStopLoss/tickSize) * tickSize;
 
-      if(newStopLoss > currentStopLoss)
+      // if(newStopLoss > currentStopLoss)
+      if(NormalizeDouble(newStopLoss-currentStopLoss,_Digits) > 0 || currentStopLoss==0)
       {
         request.action = TRADE_ACTION_SLTP;
         request.position = positionTicket;
         request.comment = "TSL. " + " | " + _Symbol + " | " + string(pMagic);
         request.sl = newStopLoss;
+        request.tp = PositionGetDouble(POSITION_TP);
 
         bool sent = OrderSend(request,result);
         if(!sent) Print("OrderSend TSL error: ", GetLastError());
@@ -571,17 +575,18 @@ void TrailingStopLoss(ulong pMagic, int pTSLFixedPoints)
     }
     else if(posMagic == pMagic && posType == ORDER_TYPE_SELL)
     {
-      double askPrice = SymbolInfoDouble(_Symbol,SYMBOL_ASK);
-      newStopLoss = askPrice + (pTSLFixedPoints * _Point);
+      newStopLoss = bidPrice + (pTSLFixedPoints * _Point);
       newStopLoss = AdjustAboveStopLevel(askPrice,newStopLoss);
       newStopLoss = round(newStopLoss/tickSize) * tickSize;
 
-      if(newStopLoss < currentStopLoss)
+      // if(newStopLoss < currentStopLoss)
+      if(NormalizeDouble(newStopLoss-currentStopLoss,_Digits) < 0 || currentStopLoss==0)
       {
         request.action = TRADE_ACTION_SLTP;
         request.position = positionTicket;
         request.comment = "TSL. " + " | " + _Symbol + " | " + string(pMagic);
         request.sl = newStopLoss;
+        request.tp = PositionGetDouble(POSITION_TP);
 
         bool sent = OrderSend(request,result);
         if(!sent) Print("OrderSend TSL error: ", GetLastError());
@@ -691,4 +696,13 @@ double AdjustBelowStopLevel(double pCurrentPrice, double pPriceToAdjust, int pPo
     }
   }
   return adjustedPrice;
+}
+
+//Filling Policy
+bool IsFillingTypeAllowed(int pFillType)
+{
+  //-- get the value of the property describing the filling mode
+  int symbolFillingMode = (int)SymbolInfoInteger(_Symbol, SYMBOL_FILLING_MODE);
+  //-- return "true" if the fill_type mode if allowed
+  return ((symbolFillingMode & pFillType) == pFillType);
 }
