@@ -292,6 +292,23 @@ int BB_Init(int pBBPeriod, int pBBShift, double pBBDeviation, ENUM_APPLIED_PRICE
 }
 double BB(int pBBHandle, int pBBLineBuffer, int pShift)
 {
+  /*
+    pBBLineBuffer:   0 - BASE_LINE, 1 - UPPER_BAND, 2 - LOWER_BAND
+    pShift: 0 - Nen dau tien, 1 - Nen thu hai, 2 - Nen thu 3
+    //KHOI TAO BB
+    int bbPeriod = 20;
+    int bbStd = 2;
+    int BBHandle = BB_Init(bbPeriod,0,bbStd,PRICE_CLOSE);
+
+    if(BBHandle == -1) Print("Khoi tao that bai");
+
+    double bbUperBand = BB(BBHandle,1,1);
+    double bbMidBand = BB(BBHandle,0,1);
+    double bbLowerBand = BB(BBHandle,2,1);
+    Print("Gia tri UpperBand: ", bbUperBand);
+    Print("Gia tri MidBand : ", bbMidBand);
+    Print("Gia tri LowerBand: ", bbLowerBand);
+  */
   ResetLastError();
 
   //We create and fill an array with BB values
@@ -310,6 +327,47 @@ double BB(int pBBHandle, int pBBLineBuffer, int pShift)
   BBValue = NormalizeDouble(BBValue,_Digits);
   
   return BBValue;
+}
+
+//+--------+// RSI Functions //+--------+//
+int RSI_Init(int pRSIPerriod, ENUM_APPLIED_PRICE pRSIPrice)
+{
+  ResetLastError();
+  int Hanlde = iRSI(_Symbol,PERIOD_CURRENT,pRSIPerriod,pRSIPrice);
+  if(Hanlde == INVALID_HANDLE)
+  {
+    return -1;
+    Print("Đã xảy ra lỗi khi tạo RSI Indicator Hanlde: ", GetLastError());
+  }
+  Print("RSI Indicator Hanlde đã được khởi tạo thành công!");
+  return Hanlde;
+}
+double RSI(int pRSIHandle, int pShift)
+{
+  /*
+  // Khoi tao RSI
+  int RSIHandle = RSI_Init(14,PRICE_CLOSE);
+  double RSIValue = RSI(RSIHandle,2);
+  Print("");
+  Print("Gia tri cua RSI : ", RSIValue);
+
+  if(currentRSI > 30 && previousRSI < 30)
+  {
+    // i crossed from bellow the 20 line
+  }
+  */
+  ResetLastError();
+
+  double RSI[];
+  ArraySetAsSeries(RSI,true);
+
+  bool fillResult = CopyBuffer(pRSIHandle,0,0,3,RSI);
+  if(fillResult == false) {
+    Print("FILL_ERROR: ", GetLastError());}
+  
+  double RSIValue = RSI[pShift];
+  RSIValue = NormalizeDouble(RSIValue,_Digits);
+  return RSIValue;
 }
 
 
